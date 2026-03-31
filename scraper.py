@@ -70,12 +70,27 @@ def parse_flipkart(soup: BeautifulSoup) -> List[dict]:
             reviews_elem = card.find('span', {'class': '_2_R_DZ'}) or card.find('span', {'class': '_1TPvTK'})
             reviews = extract_reviews(reviews_elem.get_text(strip=True)) if reviews_elem else None
 
+            # Product Link - clean version
+            link = None
+            link_elem = card.find('a', href=True)
+            if link_elem:
+                link_href = link_elem.get('href')
+                if link_href:
+                    # Clean the link: remove any tracking parameters, keep only the path
+                    if link_href.startswith('http'):
+                        # Already absolute, but clean tracking params
+                        link = link_href.split('?')[0].split('#')[0]
+                    elif link_href.startswith('/'):
+                        # Relative path, prepend base
+                        link = f"https://www.flipkart.com{link_href.split('?')[0].split('#')[0]}"
+
             if title and price:
                 products.append({
                     'title': title,
                     'price': price,
                     'rating': rating,
-                    'reviews': reviews
+                    'reviews': reviews,
+                    'link': link
                 })
         except Exception as e:
             print(f"Error parsing Flipkart product: {e}")
@@ -116,12 +131,27 @@ def parse_amazon(soup: BeautifulSoup) -> List[dict]:
             reviews_elem = card.find('span', {'class': 'a-size-base'})
             reviews = extract_reviews(reviews_elem.get_text(strip=True)) if reviews_elem else None
 
+            # Product Link - clean version (from h2 anchor)
+            link = None
+            h2_elem = card.find('h2')
+            if h2_elem:
+                link_elem = h2_elem.find('a', href=True)
+                if link_elem:
+                    link_href = link_elem.get('href')
+                    if link_href:
+                        # Clean the link: remove tracking parameters
+                        if link_href.startswith('http'):
+                            link = link_href.split('?')[0].split('#')[0]
+                        elif link_href.startswith('/'):
+                            link = f"https://www.amazon.in{link_href.split('?')[0].split('#')[0]}"
+
             if title and price:
                 products.append({
                     'title': title,
                     'price': price,
                     'rating': rating,
-                    'reviews': reviews
+                    'reviews': reviews,
+                    'link': link
                 })
         except Exception as e:
             print(f"Error parsing Amazon product: {e}")
