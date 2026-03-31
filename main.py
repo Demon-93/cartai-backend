@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Dict, List
 import google.generativeai as genai
 import os
+from scraper import search_products
 
 app = FastAPI()
 
@@ -26,7 +27,7 @@ def chat(request: ChatRequest):
     
     # Initialize Gemini
     genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
     # Get or create session for this user
     user_id = request.user_id
@@ -73,6 +74,56 @@ def chat(request: ChatRequest):
         "role": "assistant",
         "content": response.text
     })
+    
+    # If search is ready, fetch products and get recommendation
+    if search_ready:
+        try:
+            # Extract query from Gemini's JSON
+            query = result.get("query", "")
+            
+            if query:
+                # Call scraper to get products
+                products = search_products(query)
+                
+                # Build recommendation prompt
+                recommendation_prompt = f"Here are the search results: {products}. Now compare them and recommend the single best product. Explain in 3-4 sentences why it is the best choice."
+                
+                # Add recommendation prompt to history
+                sessions[user_id].append({
+                    "role": "user",
+                    "content": recommendation_prompt
+                })
+                
+                # Build full prompt for Gemini recommendation
+                full_prompt = system_prompt + "\n\n"
+                for msg in sessions[user_id]:
+                    if msg["role"] == "user":
+                        full_prompt += f"User: {msg['content']}\n"
+                    else:
+                        full_prompt += f"Assistant: {msg['content']}\n"
+                
+                # Get recommendation from Gemini
+                recommendation_response = model.generate_content(full_prompt)
+                
+                # Add recommendation to history
+                sessions[user_id].append({
+                    "role": "assistant",
+                    "content": recommendation_response.text
+                })
+                
+                return {
+                    "reply": recommendation_response.text,
+                    "search_ready": False,
+                    "history": sessions[user_id]
+                }
+        except Exception as e:
+            # If scraper fails, return original response with search_ready still true
+            print(f"Error in recommendation phase: {e}")
+            return {
+                "reply": response.text,
+                "search_ready": True,
+                "history": sessions[user_id]
+            }
     
     return {
         "reply": response.text,
