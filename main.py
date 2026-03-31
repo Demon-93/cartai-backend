@@ -4,8 +4,17 @@ from typing import Dict, List
 import google.generativeai as genai
 import os
 from scraper import search_products
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # In-memory storage for conversation sessions
 sessions: Dict[str, List[dict]] = {}
